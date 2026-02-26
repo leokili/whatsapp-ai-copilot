@@ -48,3 +48,6 @@ uploads/
 # database
 dev.db
 *.db
+
+# docker
+.dockerignore

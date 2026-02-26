@@ -6,7 +6,7 @@
     "dev": "next dev",
     "dev:backend": "npx tsx server.ts",
     "build": "npx prisma generate && npx prisma db push --accept-data-loss && next build",
-    "start": "npx puppeteer browsers install chrome && npx tsx server.ts",
+    "start": "npx tsx server.ts",
     "lint": "eslint"
   },
   "dependencies": {
