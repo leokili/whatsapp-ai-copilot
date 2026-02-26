@@ -11,11 +11,13 @@ const prisma = new PrismaClient();
 export function setupWhatsAppClient(io: SocketIOServer) {
     const client = new Client({
         authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
+        authTimeoutMs: 0, // Disable auth timeout - let it take as long as needed
+        qrMaxRetries: 10, // More retries before giving up
         puppeteer: {
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
             headless: true,
-            protocolTimeout: 180000, // 3 min - Render free tier is slow
-            timeout: 120000, // 2 min
+            protocolTimeout: 300000, // 5 min - Render free tier is very slow
+            timeout: 180000, // 3 min
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -24,7 +26,17 @@ export function setupWhatsAppClient(io: SocketIOServer) {
                 '--no-first-run',
                 '--no-zygote',
                 '--single-process',
-                '--disable-gpu'
+                '--disable-gpu',
+                '--disable-extensions',
+                '--disable-software-rasterizer',
+                '--disable-background-networking',
+                '--disable-default-apps',
+                '--disable-translate',
+                '--disable-sync',
+                '--metrics-recording-only',
+                '--mute-audio',
+                '--no-default-browser-check',
+                '--js-flags=--max-old-space-size=128'
             ],
         }
     });
