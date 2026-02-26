@@ -32,13 +32,17 @@ export async function POST(request: Request) {
             },
         });
 
+        // Buscar o crear el contacto/grupo y enlazar correctamente
+        const isGroup = targetId.includes("@g.us");
+
         // Registrar el mensaje saliente manual en el historial para que lo vea en la UI al instante
         await prisma.messageLog.create({
             data: {
-                contactId: targetId,
-                outgoing: message,
-                incoming: "",
-                isGroup: targetId.includes("@g.us"),
+                content: message,
+                from: "Me",
+                to: targetId,
+                isAiReply: false,
+                ...(isGroup ? { groupId: targetId } : { contactId: targetId })
             }
         });
 
