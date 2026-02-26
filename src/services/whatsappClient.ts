@@ -13,6 +13,9 @@ export function setupWhatsAppClient(io: SocketIOServer) {
         authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
         puppeteer: {
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+            headless: true,
+            protocolTimeout: 180000, // 3 min - Render free tier is slow
+            timeout: 120000, // 2 min
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
