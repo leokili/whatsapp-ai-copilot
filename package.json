@@ -5,8 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:backend": "npx tsx server.ts",
-    "render-build": "npx puppeteer browsers install chrome && npx prisma generate && npx prisma db push --accept-data-loss && npm run build",
-    "build": "next build",
+    "build": "npx puppeteer browsers install chrome && npx prisma generate && npx prisma db push --accept-data-loss && next build",
     "start": "npx tsx server.ts",
     "lint": "eslint"
   },
