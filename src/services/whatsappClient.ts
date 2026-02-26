@@ -12,6 +12,10 @@ export function setupWhatsAppClient(io: SocketIOServer) {
     const client = new Client({
         authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
         puppeteer: {
+            // Permitimos a puppeteer usar su ruta por defecto recién instalada o la ruta explícita del caché de linux
+            executablePath: process.env.NODE_ENV === 'production'
+                ? (fs.existsSync(path.join(process.cwd(), '.cache/puppeteer/chrome')) ? undefined : process.env.PUPPETEER_EXECUTABLE_PATH)
+                : undefined,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
