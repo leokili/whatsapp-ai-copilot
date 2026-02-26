@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String?
+  aiEnabled Boolean  @default(true) // Per-contact AI switch
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages  MessageLog[]
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  chatId    String   @unique
+  name      String?
+  aiEnabled Boolean  @default(false) // Per-group AI switch
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages  MessageLog[]
+}
+
+model MessageLog {
+  id        String   @id @default(cuid())
+  content   String
+  from      String
+  to        String
+  isAiReply Boolean  @default(false)
+  timestamp DateTime @default(now())
+  
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+  groupId   String?
+  group     Group?   @relation(fields: [groupId], references: [id])
+}
+
+model KnowledgeBase {
+  id        String   @id @default(cuid())
+  title     String
+  type      String   // 'pdf' | 'url' | 'text'
+  content   String   // The extracted text or URL
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ScheduledTask {
+  id        String   @id @default(cuid())
+  targetId  String   // phone or chat id
+  message   String
+  mediaPath String?  // Ruta local del archivo adjunto
+  mediaName String?  // Nombre original del archivo
+  mediaType String?  // Tipo MIME
+  isSticker Boolean  @default(false) // Si es true, envía la media como sticker
+  executeAt DateTime
+  isDraft   Boolean  @default(false)
+  isSent    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Config {
+  id               String  @id @default("global")
+  globalAiEnabled  Boolean @default(true) // Global switch
+  geminiApiKey     String? 
+}
