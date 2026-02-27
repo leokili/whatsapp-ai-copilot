@@ -43,6 +43,7 @@ next-env.d.ts
 # whatsapp bot data
 .wwebjs_auth
 .wwebjs_cache
+.cache/
 uploads/
 
 # database

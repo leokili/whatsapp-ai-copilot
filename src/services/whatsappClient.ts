@@ -1,4 +1,4 @@
-import { Client, LocalAuth } from 'whatsapp-web.js';
+import { Client, LocalAuth, MessageMedia, MessageSendOptions } from 'whatsapp-web.js';
 import { Server as SocketIOServer } from 'socket.io';
 import { generateAIResponse } from './ai';
 import { retrieveKnowledgeContext } from './knowledge';
@@ -7,36 +7,27 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const prisma = new PrismaClient();
+export let client: Client | null = null; // Exportamos la instancia
 
 export function setupWhatsAppClient(io: SocketIOServer) {
-    const client = new Client({
+    // --- CONFIGURACIÓN OPTIMIZADA PARA LOCALHOST (Windows) ---
+    // Ya no usamos flags restrictivos de cloud (--single-process, --no-zygote, --max-old-space-size=128).
+    // En localhost tenemos toda la RAM y CPU disponible.
+
+    client = new Client({
         authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
-        authTimeoutMs: 0, // Disable auth timeout - let it take as long as needed
-        qrMaxRetries: 10, // More retries before giving up
+        authTimeoutMs: 0, // Sin timeout de autenticación
+        qrMaxRetries: 100, // Más reintentos para evitar crashes en dev local
         puppeteer: {
-            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
             headless: true,
-            protocolTimeout: 300000, // 5 min - Render free tier is very slow
-            timeout: 180000, // 3 min
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-accelerated-2d-canvas',
                 '--no-first-run',
-                '--no-zygote',
-                '--single-process',
                 '--disable-gpu',
                 '--disable-extensions',
-                '--disable-software-rasterizer',
-                '--disable-background-networking',
-                '--disable-default-apps',
-                '--disable-translate',
-                '--disable-sync',
-                '--metrics-recording-only',
-                '--mute-audio',
-                '--no-default-browser-check',
-                '--js-flags=--max-old-space-size=128'
             ],
         }
     });
@@ -84,8 +75,16 @@ export function setupWhatsAppClient(io: SocketIOServer) {
                 process.exit(1);
             }, 5000);
 
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error al limpiar sesión tras desconexión:', err);
+            await prisma.systemLog.create({
+                data: {
+                    level: "error",
+                    module: "whatsapp",
+                    message: "Error al limpiar sesión tras desconexión",
+                    details: err?.message || String(err)
+                }
+            });
         }
     });
 
@@ -134,13 +133,72 @@ export function setupWhatsAppClient(io: SocketIOServer) {
             // Responder en el chat de WhatsApp
             await chat.sendMessage(aiReply);
 
-            // Registrar mensaje y respuesta en BD
-            // await prisma.messageLog.create({ ... })
+            // Cuidado: Aquí podrías registrar el log si quisieras
 
-        } catch (e) {
-            console.error("Error al procesar mensaje de WhatsApp:", e);
+        } catch (e: any) {
+            console.error("Error al procesar mensaje de WhatsApp o IA:", e);
+            await prisma.systemLog.create({
+                data: {
+                    level: "error",
+                    module: "whatsapp_ai",
+                    message: "Error procesando chat de entrada o conectando con Gemini AI",
+                    details: e?.message || String(e)
+                }
+            });
         }
     });
 
     return client;
 }
+
+// Enviar mensaje (texto o multimedia)
+export const sendWhatsAppMessage = async (to: string, content: string | MessageMedia, options?: MessageSendOptions) => {
+    if (!client) throw new Error('El cliente de WhatsApp no está inicializado');
+
+    try {
+        let finalTo = to;
+
+        // WA Web JS a menudo falla enviando directamente a IDs @lid
+        if (to && typeof to === 'string' && to.includes('@lid')) {
+            try {
+                const contact = await client.getContactById(to);
+
+                // Intentar extraer el número del objeto contact
+                const realNumber = contact?.number || contact?.id?.user;
+
+                if (realNumber) {
+                    finalTo = `${realNumber}@c.us`;
+                    console.log(`[WhatsApp] ID @lid traducido a número real: ${finalTo}`);
+                } else {
+                    console.log(`[WhatsApp] No se encontró número @c.us para el @lid ${to}. Enviando a ${to}`);
+                }
+            } catch (e) {
+                console.warn(`[WhatsApp] Catch: No se pudo resolver el @lid ${to}. Procediendo con original.`);
+            }
+        }
+
+        // Ya sea c.us o lid, comprobemos si está registrado en WA y obtener ID final canonizado
+        // getNumberId solo funciona con números limpios (sin @c.us), pero por las dudas
+        if (finalTo && typeof finalTo === 'string' && finalTo.includes('@c.us')) {
+            const cleanNum = finalTo.replace('@c.us', '');
+            const numberId = await client.getNumberId(cleanNum);
+            if (numberId) {
+                finalTo = numberId._serialized;
+            }
+        }
+
+        const message = await client.sendMessage(finalTo, content, options);
+        return message;
+    } catch (error: any) {
+        console.error(`Error enviando mensaje a ${to}:`, error);
+        await prisma.systemLog.create({
+            data: {
+                level: "error",
+                module: "whatsapp_sender",
+                message: `Error enviando mensaje a ${to}`,
+                details: error?.message || String(error)
+            }
+        });
+        throw error;
+    }
+};

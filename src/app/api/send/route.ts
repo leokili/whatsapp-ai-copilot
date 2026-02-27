@@ -13,36 +13,70 @@ const prisma = new PrismaClient();
 // Si quisiéramos envío instantáneo, deberíamos exponer un endpoint en Express (server.ts) 
 // y llamarlo desde aquí, pero ScheduledTask es la ruta más segura sin refactorizar la conexión de `whatsapp-web.js`.
 
+import { promises as fs } from "fs";
+import path from "path";
+
 export async function POST(request: Request) {
     try {
-        const body = await request.json();
-        const { targetId, message } = body;
+        const formData = await request.formData();
+        const targetId = formData.get("targetId") as string;
+        const message = formData.get("message") as string;
+        const isSticker = formData.get("isSticker") === "true";
+        const file = formData.get("file") as File | null;
 
-        if (!targetId || !message) {
+        if (!targetId || (!message && !file)) {
             return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
         }
 
+        let mediaPath = null;
+        let mediaName = null;
+        let mediaType = null;
+
+        if (file) {
+            // Guardar el archivo localmente
+            const bytes = await file.arrayBuffer();
+            const buffer = Buffer.from(bytes);
+
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            // Si el archivo viene del grabador web y su nombre es "blob" sin extensión, forzar .webm
+            let ext = path.extname(file.name);
+            if (!ext && file.type.includes("audio")) ext = ".webm";
+
+            const fileName = `${uniqueSuffix}${ext}`;
+            const uploadDir = path.join(process.cwd(), "uploads");
+
+            await fs.mkdir(uploadDir, { recursive: true });
+
+            const filePath = path.join(uploadDir, fileName);
+            await fs.writeFile(filePath, buffer);
+
+            mediaPath = filePath;
+            mediaName = file.name;
+            mediaType = file.type;
+        }
+
         // Programar para "ahora" (el cron lo recogerá en el próximo minuto)
-        // Alternativa: Si necesitamos inmediatez, esta ruta podría invocar HTTP a localhost:3000/internal/send (creada en server.ts)
         const task = await prisma.scheduledTask.create({
             data: {
                 targetId,
-                message,
+                message: message || "",
                 executeAt: new Date(), // Ahora
+                mediaPath,
+                mediaName,
+                mediaType,
+                isSticker
             },
         });
 
-        // Buscar o crear el contacto/grupo y enlazar correctamente
         const isGroup = targetId.includes("@g.us");
 
         // Registrar el mensaje saliente manual en el historial para que lo vea en la UI al instante
         await prisma.messageLog.create({
             data: {
-                content: message,
+                content: message || "[Media attachment]",
                 from: "Me",
                 to: targetId,
-                isAiReply: false,
-                ...(isGroup ? { groupId: targetId } : { contactId: targetId })
+                isAiReply: false
             }
         });
 

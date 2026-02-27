@@ -32,9 +32,12 @@ export async function POST(request: Request) {
             const bytes = await file.arrayBuffer();
             const buffer = Buffer.from(bytes);
 
-            // Crear nombre único
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-            const ext = path.extname(file.name);
+
+            // Si el archivo viene del grabador web y su nombre es "blob" o no tiene extensión, forzar .webm
+            let ext = path.extname(file.name);
+            if (!ext && file.type.includes("audio")) ext = ".webm";
+
             const fileName = `${uniqueSuffix}${ext}`;
             const uploadDir = path.join(process.cwd(), "uploads");
 
@@ -71,8 +74,7 @@ export async function POST(request: Request) {
 export async function GET() {
     try {
         const tasks = await prisma.scheduledTask.findMany({
-            orderBy: { executeAt: "asc" },
-            where: { isSent: false },
+            orderBy: { executeAt: "desc" }, // Mostramos mas recientes primero, incluyendo los ya enviados
         });
 
         return NextResponse.json(tasks);
@@ -98,5 +100,38 @@ export async function DELETE(request: Request) {
     } catch (error) {
         console.error("Scheduler Delete Error:", error);
         return NextResponse.json({ error: "Error al eliminar la tarea" }, { status: 500 });
+    }
+}
+
+export async function PUT(request: Request) {
+    try {
+        const formData = await request.formData();
+
+        const id = formData.get("id") as string;
+        if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
+
+        const targetId = formData.get("targetId") as string;
+        const message = formData.get("message") as string;
+        const date = formData.get("date") as string;
+        const time = formData.get("time") as string;
+        const isSticker = formData.get("isSticker") === "true";
+        // To simplify, edit doesn't change file by default unless passed
+
+        const executeAt = new Date(`${date}T${time}`);
+
+        const task = await prisma.scheduledTask.update({
+            where: { id },
+            data: {
+                targetId,
+                message: message || "",
+                executeAt,
+                isSticker,
+            },
+        });
+
+        return NextResponse.json({ success: true, task });
+    } catch (error) {
+        console.error("Scheduler Edit Error:", error);
+        return NextResponse.json({ error: "Error al editar la tarea" }, { status: 500 });
     }
 }

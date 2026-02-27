@@ -6,7 +6,7 @@ import { setupWhatsAppClient } from './src/services/whatsappClient';
 import { startCronJobs } from './src/services/cron';
 
 const dev = process.env.NODE_ENV !== 'production';
-const hostname = process.env.HOSTNAME || '0.0.0.0';
+const hostname = 'localhost';
 const port = parseInt(process.env.PORT || '3000', 10);
 
 // cuando se usa custom server, deben proveerse hostname y port
@@ -57,17 +57,18 @@ app.prepare().then(() => {
   server.get('/api/whatsapp/chats', async (req: express.Request, res: express.Response) => {
     try {
       const state = await whatsapp.getState();
-      if (state !== 'CONNECTED') {
-        return res.status(503).json({ error: 'WhatsApp no está conectado' });
-      }
+      console.log(`[API] Estado de WhatsApp solicitado: ${state}`);
+      // Removemos el check estricto de !== 'CONNECTED' porque a veces devuelve null o UNPAIRED_IDLE incluso estando listo
       const chats = await whatsapp.getChats();
       // Mapear lo básico y extraer la foto de perfil en paralelo
       const mappedChats = await Promise.all(chats.map(async (c: any) => {
         let picUrl = null;
+        let realNumber = null;
         try {
-          // Extraemos el contacto asociado al chat para ver su foto
+          // Extraemos el contacto asociado al chat para ver su foto y número crudo
           const contact = await c.getContact();
           picUrl = await contact.getProfilePicUrl();
+          realNumber = contact.number;
         } catch (err) {
           // Ignorar si no tiene foto o falla
         }
@@ -78,7 +79,8 @@ app.prepare().then(() => {
           isGroup: c.isGroup,
           unreadCount: c.unreadCount,
           timestamp: c.timestamp,
-          picUrl: picUrl
+          picUrl: picUrl,
+          realNumber: realNumber
         };
       }));
       res.json(mappedChats);

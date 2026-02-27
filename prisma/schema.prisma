@@ -70,3 +70,12 @@ model Config {
   globalAiEnabled  Boolean @default(true) // Global switch
   geminiApiKey     String? 
 }
+
+model SystemLog {
+  id        String   @id @default(cuid())
+  level     String   @default("error") // 'info', 'warn', 'error'
+  module    String   // 'cron', 'whatsapp', 'api', etc.
+  message   String
+  details   String?  // Error crudo o stack trace
+  timestamp DateTime @default(now())
+}

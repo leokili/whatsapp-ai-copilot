@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
-import { Smartphone, BookOpen, CalendarClock, MessageSquare, Settings, MessageCircle } from "lucide-react";
+import { Smartphone, BookOpen, CalendarClock, MessageSquare, Settings, MessageCircle, Server } from "lucide-react";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -62,6 +62,12 @@ export default function RootLayout({
               className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-zinc-800 text-zinc-300 hover:text-emerald-400 transition-colors"
             >
               <MessageCircle className="w-5 h-5" /> Registros
+            </Link>
+            <Link
+              href="/system-logs"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-zinc-800 text-zinc-300 hover:text-red-400 transition-colors"
+            >
+              <Server className="w-5 h-5 text-zinc-400 group-hover:text-red-400" /> Sistema (Errores)
             </Link>
             <Link
               href="/settings"
